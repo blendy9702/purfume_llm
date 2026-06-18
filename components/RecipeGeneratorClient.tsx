@@ -119,6 +119,7 @@ export default function RecipeGeneratorClient() {
 
       if (res.ok) {
         const recipe = await res.json()
+        router.refresh()
         router.push(`/recipe/${recipe.id}`)
       } else {
         const data = await res.json()

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { supabase } from '@/lib/supabase'
 
 export async function GET() {
@@ -27,6 +28,9 @@ export async function DELETE(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  revalidatePath('/')
+  revalidatePath('/recipes')
 
   return NextResponse.json({ success: true, deleted: ids.length })
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import OpenAI from 'openai'
 import { supabase, type Ingredient } from '@/lib/supabase'
 import { formatNoteLayers, getNoteLayers, resolveRecipeNotes } from '@/lib/ingredients'
@@ -181,6 +182,9 @@ ${validIngredientNames}
     if (saveError) {
       return NextResponse.json({ error: '레시피 저장 중 오류가 발생했습니다.' }, { status: 500 })
     }
+
+    revalidatePath('/')
+    revalidatePath('/recipes')
 
     return NextResponse.json(saved)
   } catch (err) {

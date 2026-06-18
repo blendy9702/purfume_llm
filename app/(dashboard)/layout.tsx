@@ -1,24 +1,24 @@
-import Sidebar from '@/components/Sidebar'
+import Sidebar from "@/components/Sidebar";
 
 export default function DashboardLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
     <div
       style={{
-        display: 'flex',
-        minHeight: '100vh',
-        background: '#f7f8fa',
+        display: "flex",
+        minHeight: "100vh",
+        background: "#f7f8fa",
       }}
     >
       <Sidebar />
       <main
         style={{
           flex: 1,
-          overflow: 'auto',
-          marginLeft: 'var(--sidebar-width)',
+          overflow: "auto",
+          marginLeft: "var(--sidebar-width)",
         }}
         className="dashboard-main"
       >
@@ -44,5 +44,5 @@ export default function DashboardLayout({
         }
       `}</style>
     </div>
-  )
+  );
 }

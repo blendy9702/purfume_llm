@@ -135,6 +135,74 @@ export function validateIngredientRecord(
   return null
 }
 
+export type NoteItemInput = {
+  name: string
+  ratio: number
+  description?: string
+  oil_type?: 'essential' | 'fragrance' | null
+}
+
+function compactName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\band\b/g, '&')
+    .replace(/[\s\-_·.]/g, '')
+}
+
+function normalizeForMatch(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/\band\b/g, '&')
+    .replace(/\s+/g, ' ')
+}
+
+export function findIngredientByName<T extends { name: string }>(
+  name: string,
+  ingredients: T[]
+): T | undefined {
+  const trimmed = name.trim()
+  const normalized = normalizeForMatch(trimmed)
+
+  const exact = ingredients.find((i) => i.name === trimmed)
+  if (exact) return exact
+
+  const caseInsensitive = ingredients.find((i) => normalizeForMatch(i.name) === normalized)
+  if (caseInsensitive) return caseInsensitive
+
+  const compact = compactName(trimmed)
+  const compactMatch = ingredients.find((i) => compactName(i.name) === compact)
+  if (compactMatch) return compactMatch
+
+  // 부분 일치 (유일한 후보만)
+  const partialMatches = ingredients.filter(
+    (i) =>
+      compactName(i.name).includes(compact) ||
+      compact.includes(compactName(i.name))
+  )
+  if (partialMatches.length === 1) return partialMatches[0]
+
+  return undefined
+}
+
+export function resolveRecipeNotes<T extends { name: string; oil_type?: 'essential' | 'fragrance' | null }>(
+  notes: NoteItemInput[],
+  ingredients: T[]
+): NoteItemInput[] {
+  return notes.map((note) => {
+    const ingredient = findIngredientByName(note.name, ingredients)
+    if (!ingredient) return note
+
+    const oilType = 'oil_type' in ingredient ? ingredient.oil_type : note.oil_type
+
+    return {
+      ...note,
+      name: ingredient.name,
+      oil_type: oilType ?? note.oil_type ?? null,
+    }
+  })
+}
+
 export function ingredientToFormData(ingredient: {
   name: string
   category: string

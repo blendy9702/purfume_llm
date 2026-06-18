@@ -3,17 +3,19 @@ import { getNoteLayers } from '@/lib/ingredients'
 import DashboardClient from '@/components/DashboardClient'
 
 async function getStats() {
-  const [ingredientsResult, recipesResult] = await Promise.all([
+  const [ingredientsResult, recentRecipesResult, recipeCountResult] = await Promise.all([
     supabase.from('ingredients').select('id, category, note_layers', { count: 'exact' }),
     supabase
       .from('recipes')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(6),
+    supabase.from('recipes').select('id', { count: 'exact', head: true }),
   ])
 
   const ingredientCount = ingredientsResult.count ?? 0
-  const recipes = recipesResult.data ?? []
+  const recipeCount = recipeCountResult.count ?? 0
+  const recentRecipes = recentRecipesResult.data ?? []
 
   const categoryCount = {
     top: 0,
@@ -33,17 +35,18 @@ async function getStats() {
     })
   })
 
-  return { ingredientCount, categoryCount, recipes }
+  return { ingredientCount, categoryCount, recipeCount, recentRecipes }
 }
 
 export default async function DashboardPage() {
-  const { ingredientCount, categoryCount, recipes } = await getStats()
+  const { ingredientCount, categoryCount, recipeCount, recentRecipes } = await getStats()
 
   return (
     <DashboardClient
       ingredientCount={ingredientCount}
       categoryCount={categoryCount}
-      recipes={recipes}
+      recipeCount={recipeCount}
+      recentRecipes={recentRecipes}
     />
   )
 }

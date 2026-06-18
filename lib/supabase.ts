@@ -20,6 +20,7 @@ export type NoteItem = {
   name: string
   ratio: number
   description: string
+  oil_type?: 'essential' | 'fragrance' | null
 }
 
 export type Recipe = {
@@ -27,6 +28,7 @@ export type Recipe = {
   name: string | null
   gender: string
   fragrance_rate: string
+  fragrance_percent: number | null
   volume: number
   mbti: string | null
   enneagram: number[] | null

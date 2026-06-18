@@ -4,9 +4,17 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import type { Recipe, NoteItem } from '@/lib/supabase'
+import { calcIngredientDosage, calcTotalDosage, DROPS_PER_ML } from '@/lib/recipe-dosage'
+import { formatFragranceRateLabel, getFragranceRateConfig } from '@/lib/fragrance-rate'
 
 type Props = {
   recipe: Recipe
+  oilTypeByName: Record<string, 'essential' | 'fragrance'>
+}
+
+const OIL_TYPE_MAP: Record<string, { label: string; color: string; textColor: string }> = {
+  essential: { label: '에센셜', color: '#ecfdf5', textColor: '#047857' },
+  fragrance: { label: '프래그런스', color: '#fef3c7', textColor: '#b45309' },
 }
 
 const NOTE_CONFIG = {
@@ -48,10 +56,18 @@ function NoteCard({
   type,
   notes,
   delay,
+  volumeMl,
+  fragranceRate,
+  fragrancePercent,
+  oilTypeByName,
 }: {
   type: 'top' | 'middle' | 'base'
   notes: NoteItem[]
   delay: number
+  volumeMl: number
+  fragranceRate: string
+  fragrancePercent?: number | null
+  oilTypeByName: Record<string, 'essential' | 'fragrance'>
 }) {
   const config = NOTE_CONFIG[type]
   const total = notes.reduce((sum, n) => sum + n.ratio, 0)
@@ -118,7 +134,12 @@ function NoteCard({
 
       {/* 재료 목록 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {notes.map((note, i) => (
+        {notes.map((note, i) => {
+          const dosage = calcIngredientDosage(note.ratio, volumeMl, fragranceRate, fragrancePercent)
+          const oilType = note.oil_type ?? oilTypeByName[note.name]
+          const oilBadge = oilType ? OIL_TYPE_MAP[oilType] : null
+
+          return (
           <motion.div
             key={i}
             initial={{ opacity: 0, x: -10 }}
@@ -131,23 +152,56 @@ function NoteCard({
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 marginBottom: '6px',
+                gap: '8px',
               }}
             >
-              <span style={{ fontSize: '14px', fontWeight: 600, color: '#1c1c1e' }}>
-                {note.name}
-              </span>
-              <span
-                style={{
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  color: config.textColor,
-                  background: config.color,
-                  padding: '2px 8px',
-                  borderRadius: '6px',
-                }}
-              >
-                {note.ratio}%
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                <span style={{ fontSize: '14px', fontWeight: 600, color: '#1c1c1e' }}>
+                  {note.name}
+                </span>
+                {oilBadge && (
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      padding: '2px 7px',
+                      borderRadius: '9999px',
+                      background: oilBadge.color,
+                      color: oilBadge.textColor,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {oilBadge.label}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                <span
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: '#555a6a',
+                    background: '#f0f1f5',
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {dosage.dropsLabel}방울
+                </span>
+                <span
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    color: config.textColor,
+                    background: config.color,
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                  }}
+                >
+                  {note.ratio}%
+                </span>
+              </div>
             </div>
             {/* 비율 바 */}
             <div
@@ -176,13 +230,14 @@ function NoteCard({
               </p>
             )}
           </motion.div>
-        ))}
+          )
+        })}
       </div>
     </motion.div>
   )
 }
 
-export default function RecipeCardClient({ recipe }: Props) {
+export default function RecipeCardClient({ recipe, oilTypeByName }: Props) {
   const router = useRouter()
   const [deleting, setDeleting] = useState(false)
   const genderBadge = GENDER_BADGE[recipe.gender] ?? { bg: '#f3f4f6', text: '#374151' }
@@ -200,6 +255,15 @@ export default function RecipeCardClient({ recipe }: Props) {
     month: 'long',
     day: 'numeric',
   })
+
+  const allNotes = [...recipe.top_notes, ...recipe.middle_notes, ...recipe.base_notes]
+  const totalDosage = calcTotalDosage(
+    allNotes,
+    recipe.volume,
+    recipe.fragrance_rate,
+    recipe.fragrance_percent
+  )
+  const rateConfig = getFragranceRateConfig(recipe.fragrance_rate)
 
   return (
     <div style={{ width: '100%', maxWidth: '900px', margin: '0 auto' }}>
@@ -343,7 +407,7 @@ export default function RecipeCardClient({ recipe }: Props) {
               fontWeight: 600,
             }}
           >
-            {recipe.fragrance_rate}
+            {formatFragranceRateLabel(recipe.fragrance_rate, recipe.fragrance_percent)}
           </span>
           <span
             style={{
@@ -482,9 +546,9 @@ export default function RecipeCardClient({ recipe }: Props) {
           gap: '16px',
         }}
       >
-        <NoteCard type="top" notes={recipe.top_notes} delay={0.2} />
-        <NoteCard type="middle" notes={recipe.middle_notes} delay={0.3} />
-        <NoteCard type="base" notes={recipe.base_notes} delay={0.4} />
+        <NoteCard type="top" notes={recipe.top_notes} delay={0.2} volumeMl={recipe.volume} fragranceRate={recipe.fragrance_rate} fragrancePercent={recipe.fragrance_percent} oilTypeByName={oilTypeByName} />
+        <NoteCard type="middle" notes={recipe.middle_notes} delay={0.3} volumeMl={recipe.volume} fragranceRate={recipe.fragrance_rate} fragrancePercent={recipe.fragrance_percent} oilTypeByName={oilTypeByName} />
+        <NoteCard type="base" notes={recipe.base_notes} delay={0.4} volumeMl={recipe.volume} fragranceRate={recipe.fragrance_rate} fragrancePercent={recipe.fragrance_percent} oilTypeByName={oilTypeByName} />
       </div>
 
       {/* 사용법 가이드 */}
@@ -503,11 +567,14 @@ export default function RecipeCardClient({ recipe }: Props) {
         <div style={{ fontSize: '14px', fontWeight: 600, color: '#92400e', marginBottom: '8px' }}>
           ✦ 제조 안내
         </div>
+        <p style={{ fontSize: '13px', color: '#92400e', margin: '0 0 10px', lineHeight: 1.7 }}>
+          {recipe.volume}ml 기준 · 원료 오일 {recipe.fragrance_percent ?? rateConfig?.defaultPercent}% · 합계 약 {totalDosage.totalDrops}방울
+          <span style={{ color: '#b45309', fontSize: '12px' }}> · 1ml = {DROPS_PER_ML}방울</span>
+        </p>
         <p style={{ fontSize: '13px', color: '#92400e', margin: 0, lineHeight: 1.7 }}>
-          {recipe.fragrance_rate === 'Parfum' && '원료 오일 농도: 전체 용량의 15-40% / 에탄올(90% 이상) 나머지 / 최소 4주 숙성 후 사용 권장'}
-          {recipe.fragrance_rate === 'Eau de Parfum' && '원료 오일 농도: 전체 용량의 10-20% / 에탄올(90% 이상) 나머지 / 최소 2주 숙성 후 사용 권장'}
-          {recipe.fragrance_rate === 'Eau de Toilette' && '원료 오일 농도: 전체 용량의 5-15% / 에탄올(85% 이상) 나머지 / 1-2주 숙성 후 사용 권장'}
-          {recipe.fragrance_rate === 'Eau de Cologne' && '원료 오일 농도: 전체 용량의 2-4% / 에탄올(70% 이상) 나머지 / 1주 숙성 후 사용 권장'}
+          {rateConfig
+            ? `원료 오일 농도: 전체 용량의 ${recipe.fragrance_percent ?? rateConfig.defaultPercent}% (${rateConfig.min}~${rateConfig.max}% 범위) / ${rateConfig.agingGuide}`
+            : '원료 오일 농도 정보 없음'}
         </p>
       </motion.div>
     </div>

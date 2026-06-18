@@ -4,11 +4,13 @@ import { useEffect, useState } from 'react'
 import { motion, animate } from 'framer-motion'
 import Link from 'next/link'
 import type { Recipe } from '@/lib/supabase'
+import RecipeListCard from '@/components/RecipeListCard'
 
 type Props = {
   ingredientCount: number
   categoryCount: { top: number; middle: number; base: number; carrier: number }
-  recipes: Recipe[]
+  recipeCount: number
+  recentRecipes: Recipe[]
 }
 
 function AnimatedCounter({ value, delay = 0 }: { value: number; delay?: number }) {
@@ -28,125 +30,12 @@ function AnimatedCounter({ value, delay = 0 }: { value: number; delay?: number }
   return <>{display}</>
 }
 
-const FRAGRANCE_RATE_LABELS: Record<string, string> = {
-  Parfum: '향수',
-  'Eau de Parfum': '오드퍼퓸',
-  'Eau de Toilette': '오드뚜왈렛',
-  'Eau de Cologne': '오드콜로뉴',
-}
-
-const GENDER_COLORS: Record<string, { bg: string; text: string }> = {
-  남성: { bg: '#dbeafe', text: '#1e40af' },
-  여성: { bg: '#fde0f0', text: '#9d174d' },
-}
-
-function RecipeCard({ recipe }: { recipe: Recipe }) {
-  const noteColors = ['#c3faf5', '#fde0f0', '#ffe6cd']
-  const genderColor = GENDER_COLORS[recipe.gender] ?? { bg: '#f3f4f6', text: '#374151' }
-
-  return (
-    <Link href={`/recipe/${recipe.id}`} style={{ textDecoration: 'none' }}>
-      <motion.div
-        whileHover={{ y: -2 }}
-        style={{
-          background: '#ffffff',
-          borderRadius: '16px',
-          padding: '20px',
-          border: '1px solid #eef0f3',
-          cursor: 'pointer',
-          transition: 'box-shadow 0.2s',
-          boxShadow: 'rgba(5, 0, 56, 0.04) 0px 2px 8px 0px',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.boxShadow = 'rgba(5, 0, 56, 0.1) 0px 8px 24px -4px'
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.boxShadow = 'rgba(5, 0, 56, 0.04) 0px 2px 8px 0px'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '12px' }}>
-          <h3
-            style={{
-              fontSize: '15px',
-              fontWeight: 600,
-              color: '#1c1c1e',
-              margin: 0,
-              lineHeight: 1.4,
-            }}
-          >
-            {recipe.name ?? '이름 없는 레시피'}
-          </h3>
-          <span
-            style={{
-              fontSize: '11px',
-              fontWeight: 600,
-              padding: '3px 8px',
-              borderRadius: '9999px',
-              background: genderColor.bg,
-              color: genderColor.text,
-              flexShrink: 0,
-              marginLeft: '8px',
-            }}
-          >
-            {recipe.gender}
-          </span>
-        </div>
-
-        <p
-          style={{
-            fontSize: '13px',
-            color: '#6b6f7e',
-            margin: '0 0 14px',
-            lineHeight: 1.6,
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-          }}
-        >
-          {recipe.summary ?? '레시피 요약 없음'}
-        </p>
-
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-          {[
-            { label: 'Top', notes: recipe.top_notes, color: noteColors[0] },
-            { label: 'Mid', notes: recipe.middle_notes, color: noteColors[1] },
-            { label: 'Base', notes: recipe.base_notes, color: noteColors[2] },
-          ].map(({ label, notes, color }) => (
-            <div
-              key={label}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '4px 8px',
-                borderRadius: '8px',
-                background: color,
-                fontSize: '12px',
-              }}
-            >
-              <span style={{ fontWeight: 600, color: '#1c1c1e' }}>{label}</span>
-              <span style={{ color: '#555a6a' }}>{notes?.length ?? 0}종</span>
-            </div>
-          ))}
-          <div
-            style={{
-              marginLeft: 'auto',
-              fontSize: '11px',
-              color: '#8e91a0',
-              display: 'flex',
-              alignItems: 'center',
-            }}
-          >
-            {recipe.fragrance_rate}
-          </div>
-        </div>
-      </motion.div>
-    </Link>
-  )
-}
-
-export default function DashboardClient({ ingredientCount, categoryCount, recipes }: Props) {
+export default function DashboardClient({
+  ingredientCount,
+  categoryCount,
+  recipeCount,
+  recentRecipes,
+}: Props) {
   const stats = [
     {
       label: '전체 재료',
@@ -157,7 +46,7 @@ export default function DashboardClient({ ingredientCount, categoryCount, recipe
     },
     {
       label: '생성된 레시피',
-      value: recipes.length,
+      value: recipeCount,
       unit: '개',
       color: '#fde0f0',
       icon: '✦',
@@ -355,9 +244,25 @@ export default function DashboardClient({ ingredientCount, categoryCount, recipe
           >
             최근 레시피
           </h2>
+          {recipeCount > 0 && (
+            <Link
+              href="/recipes"
+              style={{
+                fontSize: '13px',
+                fontWeight: 500,
+                color: '#555a6a',
+                textDecoration: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              전체 {recipeCount}개 보기 →
+            </Link>
+          )}
         </div>
 
-        {recipes.length === 0 ? (
+        {recentRecipes.length === 0 ? (
           <div
             style={{
               textAlign: 'center',
@@ -383,8 +288,8 @@ export default function DashboardClient({ ingredientCount, categoryCount, recipe
               gap: '16px',
             }}
           >
-            {recipes.map((recipe) => (
-              <RecipeCard key={recipe.id} recipe={recipe} />
+            {recentRecipes.map((recipe) => (
+              <RecipeListCard key={recipe.id} recipe={recipe} />
             ))}
           </div>
         )}

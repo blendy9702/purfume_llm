@@ -3,13 +3,10 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-
-const FRAGRANCE_RATES = [
-  { value: 'Parfum', label: 'Parfum (향수)', sub: '15-40% — 가장 진하고 지속력 강함' },
-  { value: 'Eau de Parfum', label: 'Eau de Parfum (오드퍼퓸)', sub: '10-20% — 하루종일 지속' },
-  { value: 'Eau de Toilette', label: 'Eau de Toilette (오드뚜왈렛)', sub: '5-15% — 일상적 사용' },
-  { value: 'Eau de Cologne', label: 'Eau de Cologne (오드콜로뉜)', sub: '2-4% — 가볍고 상쾌함' },
-]
+import {
+  FRAGRANCE_RATE_OPTIONS,
+  getFragranceRateConfig,
+} from '@/lib/fragrance-rate'
 
 const GENDERS = ['남성', '여성']
 
@@ -25,6 +22,7 @@ const VOLUMES = [10, 30, 50, 100]
 type FormState = {
   gender: string
   fragrance_rate: string
+  fragrance_percent: number | null
   volume: string
   mbti: string
   enneagram: number[]
@@ -34,6 +32,7 @@ type FormState = {
 const INITIAL_FORM: FormState = {
   gender: '',
   fragrance_rate: '',
+  fragrance_percent: null,
   volume: '50',
   mbti: '',
   enneagram: [],
@@ -85,9 +84,14 @@ export default function RecipeGeneratorClient() {
   const [error, setError] = useState('')
 
   const parsedVolume = parseVolume(form.volume)
+  const rateConfig = getFragranceRateConfig(form.fragrance_rate)
   const isFormValid =
     form.gender &&
     form.fragrance_rate &&
+    form.fragrance_percent !== null &&
+    rateConfig !== undefined &&
+    form.fragrance_percent >= rateConfig.min &&
+    form.fragrance_percent <= rateConfig.max &&
     parsedVolume !== null &&
     parsedVolume >= 1 &&
     parsedVolume <= 500
@@ -105,6 +109,7 @@ export default function RecipeGeneratorClient() {
         body: JSON.stringify({
           gender: form.gender,
           fragrance_rate: form.fragrance_rate,
+          fragrance_percent: form.fragrance_percent,
           volume: parsedVolume,
           mbti: form.mbti || undefined,
           enneagram: form.enneagram.length > 0 ? form.enneagram : undefined,
@@ -215,11 +220,17 @@ export default function RecipeGeneratorClient() {
               부향률 <span style={{ color: '#e53e3e' }}>*</span>
             </label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {FRAGRANCE_RATES.map((fr) => (
+              {FRAGRANCE_RATE_OPTIONS.map((fr) => (
                 <button
                   key={fr.value}
                   type="button"
-                  onClick={() => setForm((p) => ({ ...p, fragrance_rate: fr.value }))}
+                  onClick={() =>
+                    setForm((p) => ({
+                      ...p,
+                      fragrance_rate: fr.value,
+                      fragrance_percent: fr.defaultPercent,
+                    }))
+                  }
                   style={{
                     padding: '12px 16px',
                     borderRadius: '12px',
@@ -249,6 +260,83 @@ export default function RecipeGeneratorClient() {
                 </button>
               ))}
             </div>
+
+            <AnimatePresence>
+              {rateConfig && form.fragrance_percent !== null && (
+                <motion.div
+                  key={form.fragrance_rate}
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.25 }}
+                  style={{ overflow: 'hidden', marginTop: '16px' }}
+                >
+                  <div
+                    style={{
+                      padding: '16px',
+                      borderRadius: '12px',
+                      background: '#f8f9fb',
+                      border: '1px solid #eef0f3',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: '12px',
+                      }}
+                    >
+                      <span style={{ fontSize: '13px', fontWeight: 600, color: '#1c1c1e' }}>
+                        원료 오일 농도
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '20px',
+                          fontWeight: 700,
+                          color: '#1c1c1e',
+                          fontVariantNumeric: 'tabular-nums',
+                        }}
+                      >
+                        {form.fragrance_percent}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={rateConfig.min}
+                      max={rateConfig.max}
+                      step={1}
+                      value={form.fragrance_percent}
+                      onChange={(e) =>
+                        setForm((p) => ({
+                          ...p,
+                          fragrance_percent: Number(e.target.value),
+                        }))
+                      }
+                      style={{
+                        width: '100%',
+                        height: '6px',
+                        accentColor: '#1c1c1e',
+                        cursor: 'pointer',
+                      }}
+                    />
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        marginTop: '8px',
+                        fontSize: '12px',
+                        color: '#8e91a0',
+                        fontVariantNumeric: 'tabular-nums',
+                      }}
+                    >
+                      <span>{rateConfig.min}%</span>
+                      <span>{rateConfig.max}%</span>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* 용량 */}
@@ -472,7 +560,7 @@ export default function RecipeGeneratorClient() {
           </motion.button>
           {!isFormValid && !generating && (
             <p style={{ textAlign: 'center', fontSize: '13px', color: '#8e91a0', marginTop: '10px' }}>
-              성별, 부향률, 용량은 필수 항목입니다
+              성별, 부향률, 농도(%), 용량은 필수 항목입니다
             </p>
           )}
         </motion.div>

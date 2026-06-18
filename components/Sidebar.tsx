@@ -7,8 +7,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 const navItems = [
   { href: '/', icon: '◈', label: '대시보드' },
+  { href: '/recipes', icon: '✦', label: '생성된 레시피' },
   { href: '/ingredients', icon: '⬡', label: '재료 관리' },
-  { href: '/recipe/new', icon: '✦', label: '레시피 생성' },
+  { href: '/recipe/new', icon: '＋', label: '레시피 생성', badge: 'AI' },
 ]
 
 export default function Sidebar() {
@@ -100,7 +101,8 @@ export default function Sidebar() {
           const isActive =
             item.href === '/'
               ? pathname === '/'
-              : pathname.startsWith(item.href)
+              : pathname === item.href ||
+                (item.href !== '/recipe/new' && pathname.startsWith(`${item.href}/`))
           return (
             <Link
               key={item.href}
@@ -124,7 +126,7 @@ export default function Sidebar() {
               >
                 <span style={{ fontSize: '16px', lineHeight: 1 }}>{item.icon}</span>
                 {item.label}
-                {item.href === '/recipe/new' && (
+                {'badge' in item && item.badge && (
                   <span
                     style={{
                       marginLeft: 'auto',
@@ -136,7 +138,7 @@ export default function Sidebar() {
                       color: isActive ? '#fff' : '#1c1c1e',
                     }}
                   >
-                    AI
+                    {item.badge}
                   </span>
                 )}
               </div>

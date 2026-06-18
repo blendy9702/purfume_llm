@@ -22,7 +22,7 @@ export const FRAGRANCE_RATE_OPTIONS: FragranceRateConfig[] = [
     min: 30,
     max: 45,
     defaultPercent: 38,
-    agingGuide: '에탄올(90% 이상) 나머지 / 최소 4주 숙성 후 사용 권장',
+    agingGuide: '에탄올(90% 이상, 첨가제 제외) / 최소 4주 숙성 후 사용 권장',
   },
   {
     value: 'Eau de Parfum',
@@ -31,7 +31,7 @@ export const FRAGRANCE_RATE_OPTIONS: FragranceRateConfig[] = [
     min: 20,
     max: 30,
     defaultPercent: 25,
-    agingGuide: '에탄올(90% 이상) 나머지 / 최소 2주 숙성 후 사용 권장',
+    agingGuide: '에탄올(90% 이상, 첨가제 제외) / 최소 2주 숙성 후 사용 권장',
   },
   {
     value: 'Eau de Toilette',
@@ -40,7 +40,7 @@ export const FRAGRANCE_RATE_OPTIONS: FragranceRateConfig[] = [
     min: 10,
     max: 20,
     defaultPercent: 15,
-    agingGuide: '에탄올(85% 이상) 나머지 / 1-2주 숙성 후 사용 권장',
+    agingGuide: '에탄올(85% 이상, 첨가제 제외) / 1-2주 숙성 후 사용 권장',
   },
   {
     value: 'Eau de Cologne',
@@ -49,7 +49,7 @@ export const FRAGRANCE_RATE_OPTIONS: FragranceRateConfig[] = [
     min: 3,
     max: 10,
     defaultPercent: 6,
-    agingGuide: '에탄올(70% 이상) 나머지 / 1주 숙성 후 사용 권장',
+    agingGuide: '에탄올(70% 이상, 첨가제 제외) / 1주 숙성 후 사용 권장',
   },
 ]
 

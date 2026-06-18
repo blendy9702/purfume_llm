@@ -36,6 +36,7 @@ export type Recipe = {
   top_notes: NoteItem[];
   middle_notes: NoteItem[];
   base_notes: NoteItem[];
+  carrier_notes: NoteItem[];
   summary: string | null;
   created_at: string;
 };

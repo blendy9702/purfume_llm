@@ -73,7 +73,7 @@ export default function DashboardClient({
       icon: '◉',
     },
     {
-      label: '베이스 용제',
+      label: '첨가제',
       value: categoryCount.carrier,
       unit: '종',
       color: '#dbeafe',

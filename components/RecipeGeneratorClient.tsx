@@ -7,6 +7,8 @@ import {
   FRAGRANCE_RATE_OPTIONS,
   getFragranceRateConfig,
 } from '@/lib/fragrance-rate'
+import type { CarrierOption } from '@/lib/recipe-carrier'
+import { toggleCarrierName } from '@/lib/recipe-carrier'
 
 const GENDERS = ['남성', '여성']
 
@@ -24,6 +26,7 @@ type FormState = {
   fragrance_rate: string
   fragrance_percent: number | null
   volume: string
+  carrier_names: string[]
   mbti: string
   enneagram: number[]
   special_notes: string
@@ -34,9 +37,14 @@ const INITIAL_FORM: FormState = {
   fragrance_rate: '',
   fragrance_percent: null,
   volume: '50',
+  carrier_names: [],
   mbti: '',
   enneagram: [],
   special_notes: '',
+}
+
+type Props = {
+  carriers: CarrierOption[]
 }
 
 function parseVolume(value: string): number | null {
@@ -77,7 +85,7 @@ function OptionButton({
   )
 }
 
-export default function RecipeGeneratorClient() {
+export default function RecipeGeneratorClient({ carriers }: Props) {
   const router = useRouter()
   const [form, setForm] = useState<FormState>(INITIAL_FORM)
   const [generating, setGenerating] = useState(false)
@@ -111,6 +119,7 @@ export default function RecipeGeneratorClient() {
           fragrance_rate: form.fragrance_rate,
           fragrance_percent: form.fragrance_percent,
           volume: parsedVolume,
+          carrier_names: form.carrier_names.length > 0 ? form.carrier_names : undefined,
           mbti: form.mbti || undefined,
           enneagram: form.enneagram.length > 0 ? form.enneagram : undefined,
           special_notes: form.special_notes || undefined,
@@ -378,6 +387,59 @@ export default function RecipeGeneratorClient() {
               <span style={{ fontSize: '13px', color: '#8e91a0' }}>ml</span>
             </div>
           </div>
+
+          {carriers.length > 0 && (
+            <div style={sectionStyle}>
+              <label style={labelStyle}>
+                첨가제
+                <span style={{ fontSize: '12px', fontWeight: 400, color: '#8e91a0', marginLeft: '8px' }}>
+                  (선택사항 · 여러 개 가능)
+                </span>
+              </label>
+              <p style={{ fontSize: '13px', color: '#8e91a0', margin: '0 0 12px', lineHeight: 1.5 }}>
+                DPG, 올리브 리퀴드 등 에탄올과 별도로 소량 첨가하는 보조 용제입니다. 선택하면 AI가 레시피에 맞게 비율을 배분합니다. 다시 클릭하면 선택 해제됩니다.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {carriers.map((carrier) => {
+                  const selected = form.carrier_names.includes(carrier.name)
+                  return (
+                  <button
+                    key={carrier.id}
+                    type="button"
+                    onClick={() =>
+                      setForm((p) => ({
+                        ...p,
+                        carrier_names: toggleCarrierName(p.carrier_names, carrier.name),
+                      }))
+                    }
+                    style={{
+                      padding: '12px 16px',
+                      borderRadius: '12px',
+                      border: selected ? '2px solid #1e40af' : '1px solid #e0e2e8',
+                      background: selected ? '#dbeafe' : '#ffffff',
+                      color: '#1c1c1e',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                      <div style={{ fontSize: '14px', fontWeight: 500 }}>{carrier.name}</div>
+                      {selected && (
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: '#1e40af' }}>선택됨</span>
+                      )}
+                    </div>
+                    {carrier.scent_profile && (
+                      <div style={{ fontSize: '12px', color: '#6b6f7e', marginTop: '2px' }}>
+                        {carrier.scent_profile}
+                      </div>
+                    )}
+                  </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* MBTI */}
           <div style={sectionStyle}>

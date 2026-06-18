@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import type { Recipe, NoteItem } from '@/lib/supabase'
-import { calcIngredientDosage, calcTotalDosage, DROPS_PER_ML } from '@/lib/recipe-dosage'
+import { calcIngredientDosage, calcTotalDosage, calcAdditiveMl, calcEthanolVolumeMl, DROPS_PER_ML } from '@/lib/recipe-dosage'
+import { resolveAdditivePercent, getTotalAdditivePercent } from '@/lib/recipe-carrier'
 import { formatFragranceRateLabel, getFragranceRateConfig } from '@/lib/fragrance-rate'
 
 type Props = {
@@ -44,6 +45,24 @@ const NOTE_CONFIG = {
     borderColor: '#f6ad55',
     icon: '◉',
     desc: '수 시간~하루 지속되는 잔향',
+  },
+  carrier: {
+    label: 'Additive',
+    sublabel: '첨가제',
+    color: '#dbeafe',
+    textColor: '#1e40af',
+    borderColor: '#60a5fa',
+    icon: '⬡',
+    desc: 'DPG·올리브 리퀴드 등 (에탄올과 별도, 소량 첨가)',
+  },
+  ethanol: {
+    label: 'Ethanol',
+    sublabel: '에탄올',
+    color: '#f3f4f6',
+    textColor: '#374151',
+    borderColor: '#d1d5db',
+    icon: '◎',
+    desc: '주용 희석제 — 나머지 용량을 채웁니다',
   },
 }
 
@@ -237,6 +256,239 @@ function NoteCard({
   )
 }
 
+function AdditiveCard({
+  notes,
+  delay,
+  volumeMl,
+}: {
+  notes: NoteItem[]
+  delay: number
+  volumeMl: number
+}) {
+  const config = NOTE_CONFIG.carrier
+  const additivePercent = resolveAdditivePercent(notes)
+  const additiveTotalMl = calcAdditiveMl(additivePercent, volumeMl)
+  const isLegacySingle = notes.length === 1 && getTotalAdditivePercent(notes) >= 50
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      style={{
+        background: '#ffffff',
+        borderRadius: '20px',
+        padding: '24px',
+        border: '1px solid #eef0f3',
+        boxShadow: 'rgba(5, 0, 56, 0.04) 0px 4px 12px 0px',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          marginBottom: '20px',
+          paddingBottom: '16px',
+          borderBottom: '1px solid #eef0f3',
+        }}
+      >
+        <div
+          style={{
+            width: '44px',
+            height: '44px',
+            borderRadius: '12px',
+            background: config.color,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '20px',
+            flexShrink: 0,
+          }}
+        >
+          {config.icon}
+        </div>
+        <div>
+          <div style={{ fontSize: '11px', fontWeight: 600, color: config.textColor, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+            {config.label}
+          </div>
+          <div style={{ fontSize: '16px', fontWeight: 600, color: '#1c1c1e' }}>
+            {config.sublabel}
+          </div>
+        </div>
+        <div
+          style={{
+            marginLeft: 'auto',
+            textAlign: 'right',
+          }}
+        >
+          <div style={{ fontSize: '22px', fontWeight: 700, color: config.textColor, fontVariantNumeric: 'tabular-nums' }}>
+            {additiveTotalMl}ml
+          </div>
+          <div style={{ fontSize: '12px', color: '#8e91a0', fontVariantNumeric: 'tabular-nums' }}>
+            전체의 {additivePercent}%
+          </div>
+        </div>
+      </div>
+      <p style={{ fontSize: '12px', color: '#8e91a0', margin: '0 0 16px' }}>{config.desc}</p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {notes.map((note, i) => {
+          const displayPercent = isLegacySingle ? additivePercent : note.ratio
+          const ml = calcAdditiveMl(displayPercent, volumeMl)
+
+          return (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: delay + i * 0.06, duration: 0.4 }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '6px',
+                  gap: '8px',
+                }}
+              >
+                <span style={{ fontSize: '14px', fontWeight: 600, color: '#1c1c1e' }}>
+                  {note.name}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                  <span
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: '#555a6a',
+                      background: '#f0f1f5',
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {ml}ml
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      color: config.textColor,
+                      background: config.color,
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                    }}
+                  >
+                    {displayPercent}%
+                  </span>
+                </div>
+              </div>
+              {note.description && (
+                <p style={{ fontSize: '12px', color: '#8e91a0', margin: 0, lineHeight: 1.5 }}>
+                  {note.description}
+                </p>
+              )}
+            </motion.div>
+          )
+        })}
+      </div>
+    </motion.div>
+  )
+}
+
+function EthanolCard({
+  volumeMl,
+  fragranceRate,
+  fragrancePercent,
+  additivePercent,
+  delay,
+  agingGuide,
+}: {
+  volumeMl: number
+  fragranceRate: string
+  fragrancePercent?: number | null
+  additivePercent: number
+  delay: number
+  agingGuide?: string
+}) {
+  const config = NOTE_CONFIG.ethanol
+  const ethanolMl = calcEthanolVolumeMl(
+    volumeMl,
+    fragranceRate,
+    fragrancePercent,
+    additivePercent
+  )
+  const ethanolPercent = Math.round((ethanolMl / volumeMl) * 1000) / 10
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      style={{
+        background: '#ffffff',
+        borderRadius: '20px',
+        padding: '24px',
+        border: '1px solid #eef0f3',
+        boxShadow: 'rgba(5, 0, 56, 0.04) 0px 4px 12px 0px',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          marginBottom: '16px',
+          paddingBottom: '16px',
+          borderBottom: '1px solid #eef0f3',
+        }}
+      >
+        <div
+          style={{
+            width: '44px',
+            height: '44px',
+            borderRadius: '12px',
+            background: config.color,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '20px',
+            flexShrink: 0,
+          }}
+        >
+          {config.icon}
+        </div>
+        <div>
+          <div style={{ fontSize: '11px', fontWeight: 600, color: config.textColor, letterSpacing: '0.5px', textTransform: 'uppercase' }}>
+            {config.label}
+          </div>
+          <div style={{ fontSize: '16px', fontWeight: 600, color: '#1c1c1e' }}>
+            {config.sublabel}
+          </div>
+        </div>
+        <div
+          style={{
+            marginLeft: 'auto',
+            textAlign: 'right',
+          }}
+        >
+          <div style={{ fontSize: '22px', fontWeight: 700, color: config.textColor, fontVariantNumeric: 'tabular-nums' }}>
+            {ethanolMl}ml
+          </div>
+          <div style={{ fontSize: '12px', color: '#8e91a0', fontVariantNumeric: 'tabular-nums' }}>
+            전체의 {ethanolPercent}%
+          </div>
+        </div>
+      </div>
+      <p style={{ fontSize: '12px', color: '#8e91a0', margin: 0, lineHeight: 1.5 }}>
+        {config.desc}
+        {agingGuide ? ` · ${agingGuide.split(' / ')[0]}` : ''}
+      </p>
+    </motion.div>
+  )
+}
+
 export default function RecipeCardClient({ recipe, oilTypeByName }: Props) {
   const router = useRouter()
   const [deleting, setDeleting] = useState(false)
@@ -264,6 +516,15 @@ export default function RecipeCardClient({ recipe, oilTypeByName }: Props) {
     recipe.fragrance_percent
   )
   const rateConfig = getFragranceRateConfig(recipe.fragrance_rate)
+  const carrierNotes = recipe.carrier_notes ?? []
+  const additivePercent = resolveAdditivePercent(carrierNotes)
+  const additiveTotalMl = calcAdditiveMl(additivePercent, recipe.volume)
+  const ethanolMl = calcEthanolVolumeMl(
+    recipe.volume,
+    recipe.fragrance_rate,
+    recipe.fragrance_percent,
+    additivePercent
+  )
 
   return (
     <div style={{ width: '100%', maxWidth: '900px', margin: '0 auto' }}>
@@ -549,6 +810,21 @@ export default function RecipeCardClient({ recipe, oilTypeByName }: Props) {
         <NoteCard type="top" notes={recipe.top_notes} delay={0.2} volumeMl={recipe.volume} fragranceRate={recipe.fragrance_rate} fragrancePercent={recipe.fragrance_percent} oilTypeByName={oilTypeByName} />
         <NoteCard type="middle" notes={recipe.middle_notes} delay={0.3} volumeMl={recipe.volume} fragranceRate={recipe.fragrance_rate} fragrancePercent={recipe.fragrance_percent} oilTypeByName={oilTypeByName} />
         <NoteCard type="base" notes={recipe.base_notes} delay={0.4} volumeMl={recipe.volume} fragranceRate={recipe.fragrance_rate} fragrancePercent={recipe.fragrance_percent} oilTypeByName={oilTypeByName} />
+        {carrierNotes.length > 0 && (
+          <AdditiveCard
+            notes={carrierNotes}
+            delay={0.5}
+            volumeMl={recipe.volume}
+          />
+        )}
+        <EthanolCard
+          volumeMl={recipe.volume}
+          fragranceRate={recipe.fragrance_rate}
+          fragrancePercent={recipe.fragrance_percent}
+          additivePercent={additivePercent}
+          delay={carrierNotes.length > 0 ? 0.55 : 0.5}
+          agingGuide={rateConfig?.agingGuide}
+        />
       </div>
 
       {/* 사용법 가이드 */}
@@ -569,11 +845,15 @@ export default function RecipeCardClient({ recipe, oilTypeByName }: Props) {
         </div>
         <p style={{ fontSize: '13px', color: '#92400e', margin: '0 0 10px', lineHeight: 1.7 }}>
           {recipe.volume}ml 기준 · 원료 오일 {recipe.fragrance_percent ?? rateConfig?.defaultPercent}% · 합계 약 {totalDosage.totalDrops}방울
+          {carrierNotes.length > 0 && (
+            <> · 첨가제 {additiveTotalMl}ml ({additivePercent}%)</>
+          )}
+          <> · 에탄올 {ethanolMl}ml</>
           <span style={{ color: '#b45309', fontSize: '12px' }}> · 1ml = {DROPS_PER_ML}방울</span>
         </p>
         <p style={{ fontSize: '13px', color: '#92400e', margin: 0, lineHeight: 1.7 }}>
           {rateConfig
-            ? `원료 오일 농도: 전체 용량의 ${recipe.fragrance_percent ?? rateConfig.defaultPercent}% (${rateConfig.min}~${rateConfig.max}% 범위) / ${rateConfig.agingGuide}`
+            ? `원료 오일 ${recipe.fragrance_percent ?? rateConfig.defaultPercent}% + 첨가제 ${additivePercent}% + 에탄올 나머지 / ${rateConfig.agingGuide.split(' / ').slice(1).join(' / ') || rateConfig.agingGuide}`
             : '원료 오일 농도 정보 없음'}
         </p>
       </motion.div>

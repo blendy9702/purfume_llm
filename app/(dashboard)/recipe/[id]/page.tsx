@@ -22,9 +22,12 @@ export default async function RecipePage({
 
   const { data: ingredients } = await supabase
     .from('ingredients')
-    .select('name, oil_type')
+    .select('name, oil_type, category')
 
   const oilTypeByName: Record<string, 'essential' | 'fragrance'> = {}
+  const carrierIngredients =
+    ingredients?.filter((ingredient) => ingredient.category === 'carrier') ?? []
+
   ingredients?.forEach((ingredient) => {
     if (ingredient.oil_type === 'essential' || ingredient.oil_type === 'fragrance') {
       oilTypeByName[ingredient.name] = ingredient.oil_type
@@ -36,6 +39,7 @@ export default async function RecipePage({
     top_notes: resolveRecipeNotes(recipe.top_notes ?? [], ingredients ?? []),
     middle_notes: resolveRecipeNotes(recipe.middle_notes ?? [], ingredients ?? []),
     base_notes: resolveRecipeNotes(recipe.base_notes ?? [], ingredients ?? []),
+    carrier_notes: resolveRecipeNotes(recipe.carrier_notes ?? [], carrierIngredients),
   }
 
   return <RecipeCardClient recipe={resolvedRecipe} oilTypeByName={oilTypeByName} />

@@ -34,7 +34,7 @@ const NOTE_LAYER_OPTIONS = [
 const FILTER_CATEGORIES = [
   { value: FILTER_ALL, label: "전체" },
   ...NOTE_LAYER_OPTIONS,
-  { value: "carrier", label: "베이스 용제", color: "#dbeafe", textColor: "#1e40af" },
+  { value: "carrier", label: "첨가제", color: "#dbeafe", textColor: "#1e40af" },
 ];
 
 const NOTE_LAYER_MAP: Record<
@@ -369,7 +369,7 @@ export default function IngredientsClient() {
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                   {[
                     { value: "fragrance" as const, label: "향료" },
-                    { value: "carrier" as const, label: "베이스 용제" },
+                    { value: "carrier" as const, label: "첨가제" },
                   ].map((option) => (
                     <button
                       key={option.value}

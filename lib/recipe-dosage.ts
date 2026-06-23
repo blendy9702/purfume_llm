@@ -1,6 +1,20 @@
 /** 에센셜/프래그런스 오일 1ml ≈ 20방울 (표준 드로퍼 기준) */
 export const DROPS_PER_ML = 20
 
+/** ml 표시 — 불필요한 0 제거, 최대 3자리 소수 */
+export function formatMl(ml: number): string {
+  if (ml <= 0) return '0'
+  if (ml < 0.001) return '<0.001'
+  const fixed = ml.toFixed(3)
+  return fixed.replace(/\.?0+$/, '') || '0'
+}
+
+function buildDropsLabel(ratio: number, rawDrops: number): string {
+  if (ratio <= 0) return '0'
+  if (rawDrops < 1) return '<1'
+  return String(Math.round(rawDrops))
+}
+
 /** @deprecated midpoint fallback — prefer fragrancePercent */
 const FRAGRANCE_OIL_FRACTION: Record<string, number> = {
   Parfum: 0.375,
@@ -23,21 +37,11 @@ export function calcIngredientDosage(
   const totalOilMl = volumeMl * getOilFraction(fragranceRate, fragrancePercent)
   const ingredientMl = totalOilMl * (ratio / 100)
   const rawDrops = ingredientMl * DROPS_PER_ML
-  const drops = Math.round(rawDrops)
-
-  let dropsLabel: string
-  if (ratio <= 0) {
-    dropsLabel = '0'
-  } else if (drops === 0) {
-    dropsLabel = '<1'
-  } else {
-    dropsLabel = String(drops)
-  }
 
   return {
-    ml: Math.round(ingredientMl * 100) / 100,
-    drops,
-    dropsLabel,
+    ml: ingredientMl,
+    drops: Math.round(rawDrops),
+    dropsLabel: buildDropsLabel(ratio, rawDrops),
   }
 }
 
@@ -54,7 +58,20 @@ export function calcTotalDosage(
 
 /** 첨가제(DPG 등) — 전체 용량 대비 ratio% */
 export function calcAdditiveMl(ratioPercentOfTotal: number, volumeMl: number): number {
-  return Math.round(volumeMl * (ratioPercentOfTotal / 100) * 100) / 100
+  return volumeMl * (ratioPercentOfTotal / 100)
+}
+
+export function calcAdditiveDosage(
+  ratioPercentOfTotal: number,
+  volumeMl: number
+): { ml: number; drops: number; dropsLabel: string } {
+  const ml = calcAdditiveMl(ratioPercentOfTotal, volumeMl)
+  const rawDrops = ml * DROPS_PER_ML
+  return {
+    ml,
+    drops: Math.round(rawDrops),
+    dropsLabel: buildDropsLabel(ratioPercentOfTotal, rawDrops),
+  }
 }
 
 export function calcOilVolumeMl(
@@ -62,7 +79,7 @@ export function calcOilVolumeMl(
   fragranceRate: string,
   fragrancePercent?: number | null
 ): number {
-  return Math.round(volumeMl * getOilFraction(fragranceRate, fragrancePercent) * 100) / 100
+  return volumeMl * getOilFraction(fragranceRate, fragrancePercent)
 }
 
 /** 에탄올 = 전체 − 원료 오일 − 첨가제 */
@@ -74,7 +91,7 @@ export function calcEthanolVolumeMl(
 ): number {
   const oilMl = calcOilVolumeMl(volumeMl, fragranceRate, fragrancePercent)
   const additiveMl = calcAdditiveMl(additivePercentOfTotal, volumeMl)
-  return Math.max(0, Math.round((volumeMl - oilMl - additiveMl) * 100) / 100)
+  return Math.max(0, volumeMl - oilMl - additiveMl)
 }
 
 /** @deprecated use calcAdditiveMl — ratio is % of total volume, not diluent */

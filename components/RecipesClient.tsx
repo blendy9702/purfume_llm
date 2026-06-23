@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import type { Recipe } from '@/lib/supabase'
+import { filterRecipesBySearch } from '@/lib/recipe-search'
 import RecipeListCard from '@/components/RecipeListCard'
 
 type Props = {
@@ -18,6 +19,12 @@ export default function RecipesClient({ recipes: initialRecipes }: Props) {
   const [selectionMode, setSelectionMode] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const filteredRecipes = useMemo(
+    () => filterRecipesBySearch(recipes, searchQuery),
+    [recipes, searchQuery]
+  )
 
   useEffect(() => {
     setRecipes(initialRecipes)
@@ -32,7 +39,8 @@ export default function RecipesClient({ recipes: initialRecipes }: Props) {
     })
   }, [initialRecipes])
 
-  const allSelected = recipes.length > 0 && selectedIds.size === recipes.length
+  const allSelected =
+    filteredRecipes.length > 0 && filteredRecipes.every((recipe) => selectedIds.has(recipe.id))
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -47,7 +55,7 @@ export default function RecipesClient({ recipes: initialRecipes }: Props) {
     if (allSelected) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(recipes.map((recipe) => recipe.id)))
+      setSelectedIds(new Set(filteredRecipes.map((recipe) => recipe.id)))
     }
   }
 
@@ -111,9 +119,38 @@ export default function RecipesClient({ recipes: initialRecipes }: Props) {
           생성된 레시피
         </h1>
         <p style={{ fontSize: '14px', color: '#8e91a0', margin: 0 }}>
-          AI로 생성한 향수 레시피 {recipes.length}개
+          {searchQuery.trim()
+            ? `검색 결과 ${filteredRecipes.length}개 · 전체 ${recipes.length}개`
+            : `AI로 생성한 향수 레시피 ${recipes.length}개`}
         </p>
       </motion.div>
+
+      {recipes.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05, duration: 0.3 }}
+          style={{ marginBottom: '16px' }}
+        >
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="레시피명, 재료, MBTI, 성별 검색..."
+            style={{
+              width: '100%',
+              height: '44px',
+              padding: '0 16px',
+              border: '1px solid #e0e2e8',
+              borderRadius: '12px',
+              background: '#ffffff',
+              color: '#1c1c1e',
+              outline: 'none',
+              fontSize: '16px',
+            }}
+          />
+        </motion.div>
+      )}
 
       {recipes.length > 0 && (
         <motion.div
@@ -264,6 +301,24 @@ export default function RecipesClient({ recipes: initialRecipes }: Props) {
             </motion.button>
           </Link>
         </motion.div>
+      ) : filteredRecipes.length === 0 ? (
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, duration: 0.4 }}
+          style={{
+            textAlign: 'center',
+            padding: '64px 24px',
+            background: '#ffffff',
+            borderRadius: '16px',
+            border: '1px solid #eef0f3',
+          }}
+        >
+          <div style={{ fontSize: '40px', marginBottom: '12px' }}>🔍</div>
+          <p style={{ fontSize: '15px', color: '#8e91a0', margin: 0 }}>
+            &quot;{searchQuery.trim()}&quot; 검색 결과가 없습니다
+          </p>
+        </motion.div>
       ) : (
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -275,7 +330,7 @@ export default function RecipesClient({ recipes: initialRecipes }: Props) {
             gap: '16px',
           }}
         >
-          {recipes.map((recipe, i) => (
+          {filteredRecipes.map((recipe, i) => (
             <motion.div
               key={recipe.id}
               initial={{ opacity: 0, y: 16 }}

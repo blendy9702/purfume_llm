@@ -2,10 +2,76 @@ import { getNoteLayers, type NoteLayer } from '@/lib/ingredients'
 import type { Ingredient, NoteItem } from '@/lib/supabase'
 
 type RecentRecipe = {
+  name?: string | null
   top_notes: NoteItem[]
   middle_notes: NoteItem[]
   base_notes: NoteItem[]
 }
+
+const TITLE_STYLE_DIRECTIONS = [
+  {
+    style: '재료 중심',
+    guide: '핵심 재료 1~2개를 담담하게 (예: "Basil & Lime", "Cedar Cardamom")',
+    examples: ['Green Tea Leaf', 'Rosewood Ginger'],
+  },
+  {
+    style: '무드·장면',
+    guide: '향이 떠오르는 일상 장면·분위기 (예: "Rainy Window", "Late Bus Ride", "Open Window")',
+    examples: ['Quiet Corner', 'Warm Laundry'],
+  },
+  {
+    style: '감각·색',
+    guide: '촉감·온도·색으로 표현 (예: "Soft Grey", "Cool Mint Air", "Golden Hour")',
+    examples: ['Pale Blue', 'Warm Sand'],
+  },
+  {
+    style: '캐주얼·솔직',
+    guide: '꾸미지 않은 가벼운 말투 (예: "Almost Sweet", "Not Too Loud", "Still Awake")',
+    examples: ['Kind of Fresh', 'Half Asleep'],
+  },
+  {
+    style: '짧고 단순',
+    guide: '1~2단어, 군더더기 없이 (예: "Woodsmoke", "Petal", "Drift")',
+    examples: ['Haze', 'Porchlight'],
+  },
+  {
+    style: '시·이미지',
+    guide: '은유·짧은 구절 (예: "Paper Moon", "Salt on Skin", "First Snow")',
+    examples: ['Empty Cup', 'Slow River'],
+  },
+  {
+    style: '시간·계절',
+    guide: '시간대·계절감 (예: "March Morning", "3am Kitchen", "Early Autumn")',
+    examples: ['Sunday Noon', 'Winter Walk'],
+  },
+  {
+    style: '유머·엣지',
+    guide: '약간의 위트·의외성 (예: "Borrowed Jacket", "Misplaced Umbrella", "Too Many Books")',
+    examples: ['Lost Key', 'Extra Sugar'],
+  },
+]
+
+const OVERUSED_TITLE_WORDS = [
+  'essence',
+  'elixir',
+  'velvet',
+  'noir',
+  'lumière',
+  'lumiere',
+  'mystique',
+  'elegance',
+  'supreme',
+  'royal',
+  'lux',
+  'luxury',
+  'prestige',
+  'signature',
+  'parfum',
+  'accord',
+  'aura',
+  'divine',
+  'enigma',
+]
 
 const CREATIVE_DIRECTIONS = [
   '플로럴·그린 계열 중심의 가볍고 상쾌한 조합',
@@ -115,6 +181,35 @@ export function pickSpotlightIngredients(
 
 export function shuffleIngredientsList<T>(items: T[]): T[] {
   return shuffle(items)
+}
+
+export function pickTitleStyleDirection() {
+  return TITLE_STYLE_DIRECTIONS[Math.floor(Math.random() * TITLE_STYLE_DIRECTIONS.length)]
+}
+
+export function buildNamingPromptSection(recentRecipes: RecentRecipe[]): string {
+  const direction = pickTitleStyleDirection()
+  const recentNames = recentRecipes
+    .map((recipe) => recipe.name?.trim())
+    .filter((name): name is string => Boolean(name))
+    .slice(0, 10)
+
+  const lines = [
+    '## 향수 제목 (name) 지침',
+    '- **고급·럭셔리 향수 브랜드명처럼 짓지 마세요.** Essence, Elixir, Velvet Noir, Mystique, Elegance 같은 뻔한 마케팅 단어는 피하세요.',
+    `- 이번 제목 스타일: **${direction.style}** — ${direction.guide}`,
+    `- 참고 톤 (그대로 복사 금지): ${direction.examples.join(', ')}`,
+    '- 1~4단어, 영어, 이번 레시피의 재료·무드·성향과 연결되되 **매번 다른 느낌**으로',
+    '- 직전 레시피들과 비슷한 단어 조합·리듬 반복 금지',
+  ]
+
+  if (recentNames.length > 0) {
+    lines.push(`- 최근 사용된 제목 (유사하게 짓지 마세요): ${recentNames.join(' / ')}`)
+  }
+
+  lines.push(`- 피할 단어 예: ${OVERUSED_TITLE_WORDS.slice(0, 12).join(', ')}`)
+
+  return lines.join('\n')
 }
 
 export function buildDiversityPromptSection(

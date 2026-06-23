@@ -397,7 +397,8 @@ export default function RecipeGeneratorClient({ carriers }: Props) {
                 </span>
               </label>
               <p style={{ fontSize: '13px', color: '#8e91a0', margin: '0 0 12px', lineHeight: 1.5 }}>
-                DPG, 올리브 리퀴드 등 에탄올과 별도로 소량 첨가하는 보조 용제입니다. 선택하면 AI가 레시피에 맞게 비율을 배분합니다. 다시 클릭하면 선택 해제됩니다.
+                재료 목록에 등록만 하면 적용되지 않습니다. 아래에서 선택해야 레시피에 반영됩니다.
+                DPG, 올리브 리퀴드 등 에탄올과 별도로 소량 첨가하는 보조 용제이며, AI가 비율을 배분합니다. 다시 클릭하면 선택 해제됩니다.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {carriers.map((carrier) => {

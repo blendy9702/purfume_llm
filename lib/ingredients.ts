@@ -145,16 +145,65 @@ export type NoteItemInput = {
 function compactName(name: string): string {
   return name
     .toLowerCase()
-    .replace(/\band\b/g, '&')
-    .replace(/[\s\-_·.]/g, '')
+    .replace(/\band\b/g, '')
+    .replace(/앤/g, '')
+    .replace(/[\s\-_·.&]/g, '')
 }
 
 function normalizeForMatch(name: string): string {
   return name
     .trim()
     .toLowerCase()
-    .replace(/\band\b/g, '&')
+    .replace(/\band\b/g, '앤')
     .replace(/\s+/g, ' ')
+}
+
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0
+  if (a.length === 0) return b.length
+  if (b.length === 0) return a.length
+
+  const prev = Array.from({ length: b.length + 1 }, (_, i) => i)
+  const curr = new Array<number>(b.length + 1)
+
+  for (let i = 0; i < a.length; i++) {
+    curr[0] = i + 1
+    for (let j = 0; j < b.length; j++) {
+      const cost = a[i] === b[j] ? 0 : 1
+      curr[j + 1] = Math.min(curr[j] + 1, prev[j + 1] + 1, prev[j] + cost)
+    }
+    for (let j = 0; j <= b.length; j++) prev[j] = curr[j]
+  }
+
+  return prev[b.length]
+}
+
+function findFuzzyIngredientMatch<T extends { name: string }>(
+  name: string,
+  ingredients: T[]
+): T | undefined {
+  const compact = compactName(name)
+  if (compact.length < 4) return undefined
+
+  const scored = ingredients
+    .map((ingredient) => {
+      const candidate = compactName(ingredient.name)
+      const dist = levenshtein(compact, candidate)
+      const maxLen = Math.max(compact.length, candidate.length, 1)
+      return { ingredient, dist, score: dist / maxLen }
+    })
+    .filter(({ dist, score }) => dist <= Math.max(2, Math.floor(compact.length * 0.2)) && score <= 0.2)
+    .sort((a, b) => a.score - b.score || a.dist - b.dist)
+
+  if (scored.length === 0) return undefined
+  if (scored.length === 1) return scored[0].ingredient
+
+  const [best, second] = scored
+  if (best.dist + 1 < second.dist || best.score < second.score * 0.6) {
+    return best.ingredient
+  }
+
+  return undefined
 }
 
 export function findIngredientByName<T extends { name: string }>(
@@ -182,25 +231,40 @@ export function findIngredientByName<T extends { name: string }>(
   )
   if (partialMatches.length === 1) return partialMatches[0]
 
-  return undefined
+  return findFuzzyIngredientMatch(trimmed, ingredients)
 }
 
 export function resolveRecipeNotes<T extends { name: string; oil_type?: 'essential' | 'fragrance' | null }>(
   notes: NoteItemInput[],
   ingredients: T[]
 ): NoteItemInput[] {
-  return notes.map((note) => {
+  const resolved: NoteItemInput[] = []
+
+  for (const note of notes) {
     const ingredient = findIngredientByName(note.name, ingredients)
-    if (!ingredient) return note
+    if (!ingredient) continue
 
     const oilType = 'oil_type' in ingredient ? ingredient.oil_type : note.oil_type
 
-    return {
+    resolved.push({
       ...note,
       name: ingredient.name,
       oil_type: oilType ?? note.oil_type ?? null,
-    }
-  })
+    })
+  }
+
+  if (resolved.length === notes.length) return resolved
+  return renormalizeNoteRatios(resolved)
+}
+
+export function renormalizeNoteRatios(notes: NoteItemInput[]): NoteItemInput[] {
+  const total = notes.reduce((sum, note) => sum + note.ratio, 0)
+  if (total <= 0) return notes
+
+  return notes.map((note) => ({
+    ...note,
+    ratio: Math.round((note.ratio / total) * 1000) / 10,
+  }))
 }
 
 export function ingredientToFormData(ingredient: {

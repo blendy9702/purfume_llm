@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import type { Recipe, NoteItem } from '@/lib/supabase'
-import { calcIngredientDosage, calcTotalDosage, calcAdditiveMl, calcEthanolVolumeMl, DROPS_PER_ML } from '@/lib/recipe-dosage'
+import { calcIngredientDosage, calcTotalDosage, calcAdditiveDosage, calcEthanolVolumeMl, calcOilVolumeMl, formatMl, DROPS_PER_ML } from '@/lib/recipe-dosage'
 import { resolveAdditivePercent, getTotalAdditivePercent } from '@/lib/recipe-carrier'
 import { formatFragranceRateLabel, getFragranceRateConfig } from '@/lib/fragrance-rate'
 
@@ -71,6 +71,49 @@ const GENDER_BADGE: Record<string, { bg: string; text: string }> = {
   여성: { bg: '#fde0f0', text: '#9d174d' },
 }
 
+function DosageBadges({
+  ml,
+  dropsLabel,
+  accentColor,
+  accentBg,
+}: {
+  ml: number
+  dropsLabel: string
+  accentColor: string
+  accentBg: string
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+      <span
+        style={{
+          fontSize: '13px',
+          fontWeight: 700,
+          color: accentColor,
+          background: accentBg,
+          padding: '2px 8px',
+          borderRadius: '6px',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {formatMl(ml)}ml
+      </span>
+      <span
+        style={{
+          fontSize: '12px',
+          fontWeight: 600,
+          color: '#555a6a',
+          background: '#f0f1f5',
+          padding: '2px 8px',
+          borderRadius: '6px',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {dropsLabel}방울
+      </span>
+    </div>
+  )
+}
+
 function NoteCard({
   type,
   notes,
@@ -89,7 +132,8 @@ function NoteCard({
   oilTypeByName: Record<string, 'essential' | 'fragrance'>
 }) {
   const config = NOTE_CONFIG[type]
-  const total = notes.reduce((sum, n) => sum + n.ratio, 0)
+  const sectionDosage = calcTotalDosage(notes, volumeMl, fragranceRate, fragrancePercent)
+  const sectionTotalMl = sectionDosage.totalMl
 
   return (
     <motion.div
@@ -141,12 +185,15 @@ function NoteCard({
         <div
           style={{
             marginLeft: 'auto',
-            fontSize: '22px',
-            fontWeight: 700,
-            color: config.textColor,
+            textAlign: 'right',
           }}
         >
-          {total}%
+          <div style={{ fontSize: '22px', fontWeight: 700, color: config.textColor, fontVariantNumeric: 'tabular-nums' }}>
+            {formatMl(sectionTotalMl)}ml
+          </div>
+          <div style={{ fontSize: '12px', color: '#8e91a0', fontVariantNumeric: 'tabular-nums' }}>
+            {sectionDosage.totalDrops}방울
+          </div>
         </div>
       </div>
       <p style={{ fontSize: '12px', color: '#8e91a0', margin: '0 0 16px' }}>{config.desc}</p>
@@ -194,33 +241,12 @@ function NoteCard({
                   </span>
                 )}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                <span
-                  style={{
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    color: '#555a6a',
-                    background: '#f0f1f5',
-                    padding: '2px 8px',
-                    borderRadius: '6px',
-                    fontVariantNumeric: 'tabular-nums',
-                  }}
-                >
-                  {dosage.dropsLabel}방울
-                </span>
-                <span
-                  style={{
-                    fontSize: '13px',
-                    fontWeight: 700,
-                    color: config.textColor,
-                    background: config.color,
-                    padding: '2px 8px',
-                    borderRadius: '6px',
-                  }}
-                >
-                  {note.ratio}%
-                </span>
-              </div>
+              <DosageBadges
+                ml={dosage.ml}
+                dropsLabel={dosage.dropsLabel}
+                accentColor={config.textColor}
+                accentBg={config.color}
+              />
             </div>
             {/* 비율 바 */}
             <div
@@ -234,7 +260,9 @@ function NoteCard({
             >
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${(note.ratio / total) * 100}%` }}
+                animate={{
+                  width: sectionTotalMl > 0 ? `${(dosage.ml / sectionTotalMl) * 100}%` : '0%',
+                }}
                 transition={{ delay: delay + 0.3 + i * 0.06, duration: 0.6, ease: 'easeOut' }}
                 style={{
                   height: '100%',
@@ -267,8 +295,13 @@ function AdditiveCard({
 }) {
   const config = NOTE_CONFIG.carrier
   const additivePercent = resolveAdditivePercent(notes)
-  const additiveTotalMl = calcAdditiveMl(additivePercent, volumeMl)
   const isLegacySingle = notes.length === 1 && getTotalAdditivePercent(notes) >= 50
+  const additiveItems = notes.map((note) => {
+    const displayPercent = isLegacySingle ? additivePercent : note.ratio
+    return { note, dosage: calcAdditiveDosage(displayPercent, volumeMl) }
+  })
+  const additiveTotalMl = additiveItems.reduce((sum, item) => sum + item.dosage.ml, 0)
+  const additiveTotalDrops = additiveItems.reduce((sum, item) => sum + item.dosage.drops, 0)
 
   return (
     <motion.div
@@ -323,21 +356,17 @@ function AdditiveCard({
           }}
         >
           <div style={{ fontSize: '22px', fontWeight: 700, color: config.textColor, fontVariantNumeric: 'tabular-nums' }}>
-            {additiveTotalMl}ml
+            {formatMl(additiveTotalMl)}ml
           </div>
           <div style={{ fontSize: '12px', color: '#8e91a0', fontVariantNumeric: 'tabular-nums' }}>
-            전체의 {additivePercent}%
+            {additiveTotalDrops}방울
           </div>
         </div>
       </div>
       <p style={{ fontSize: '12px', color: '#8e91a0', margin: '0 0 16px' }}>{config.desc}</p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {notes.map((note, i) => {
-          const displayPercent = isLegacySingle ? additivePercent : note.ratio
-          const ml = calcAdditiveMl(displayPercent, volumeMl)
-
-          return (
+        {additiveItems.map(({ note, dosage }, i) => (
             <motion.div
               key={i}
               initial={{ opacity: 0, x: -10 }}
@@ -356,33 +385,12 @@ function AdditiveCard({
                 <span style={{ fontSize: '14px', fontWeight: 600, color: '#1c1c1e' }}>
                   {note.name}
                 </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                  <span
-                    style={{
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      color: '#555a6a',
-                      background: '#f0f1f5',
-                      padding: '2px 8px',
-                      borderRadius: '6px',
-                      fontVariantNumeric: 'tabular-nums',
-                    }}
-                  >
-                    {ml}ml
-                  </span>
-                  <span
-                    style={{
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      color: config.textColor,
-                      background: config.color,
-                      padding: '2px 8px',
-                      borderRadius: '6px',
-                    }}
-                  >
-                    {displayPercent}%
-                  </span>
-                </div>
+                <DosageBadges
+                  ml={dosage.ml}
+                  dropsLabel={dosage.dropsLabel}
+                  accentColor={config.textColor}
+                  accentBg={config.color}
+                />
               </div>
               {note.description && (
                 <p style={{ fontSize: '12px', color: '#8e91a0', margin: 0, lineHeight: 1.5 }}>
@@ -390,8 +398,7 @@ function AdditiveCard({
                 </p>
               )}
             </motion.div>
-          )
-        })}
+        ))}
       </div>
     </motion.div>
   )
@@ -419,7 +426,6 @@ function EthanolCard({
     fragrancePercent,
     additivePercent
   )
-  const ethanolPercent = Math.round((ethanolMl / volumeMl) * 1000) / 10
 
   return (
     <motion.div
@@ -474,10 +480,7 @@ function EthanolCard({
           }}
         >
           <div style={{ fontSize: '22px', fontWeight: 700, color: config.textColor, fontVariantNumeric: 'tabular-nums' }}>
-            {ethanolMl}ml
-          </div>
-          <div style={{ fontSize: '12px', color: '#8e91a0', fontVariantNumeric: 'tabular-nums' }}>
-            전체의 {ethanolPercent}%
+            {formatMl(ethanolMl)}ml
           </div>
         </div>
       </div>
@@ -515,10 +518,18 @@ export default function RecipeCardClient({ recipe, oilTypeByName }: Props) {
     recipe.fragrance_rate,
     recipe.fragrance_percent
   )
+  const totalOilMl = calcOilVolumeMl(
+    recipe.volume,
+    recipe.fragrance_rate,
+    recipe.fragrance_percent
+  )
   const rateConfig = getFragranceRateConfig(recipe.fragrance_rate)
   const carrierNotes = recipe.carrier_notes ?? []
   const additivePercent = resolveAdditivePercent(carrierNotes)
-  const additiveTotalMl = calcAdditiveMl(additivePercent, recipe.volume)
+  const additiveTotalMl = carrierNotes.reduce(
+    (sum, note) => sum + calcAdditiveDosage(note.ratio, recipe.volume).ml,
+    0
+  )
   const ethanolMl = calcEthanolVolumeMl(
     recipe.volume,
     recipe.fragrance_rate,
@@ -726,7 +737,7 @@ export default function RecipeCardClient({ recipe, oilTypeByName }: Props) {
           </p>
         )}
 
-        {/* 노트 비율 시각화 */}
+        {/* 노트 구성 */}
         <div
           style={{
             background: 'rgba(255,255,255,0.06)',
@@ -735,7 +746,7 @@ export default function RecipeCardClient({ recipe, oilTypeByName }: Props) {
           }}
         >
           <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginBottom: '10px', fontWeight: 500 }}>
-            노트 구성 비율
+            노트 구성 (원료 오일 {formatMl(totalOilMl)}ml)
           </div>
           <div style={{ display: 'flex', height: '8px', borderRadius: '4px', overflow: 'hidden', gap: '2px' }}>
             {[
@@ -743,32 +754,45 @@ export default function RecipeCardClient({ recipe, oilTypeByName }: Props) {
               { notes: recipe.middle_notes, color: '#f687b3' },
               { notes: recipe.base_notes, color: '#f6ad55' },
             ].map(({ notes, color }, i) => {
-              const total = notes.reduce((sum, n) => sum + n.ratio, 0)
+              const sectionMl = calcTotalDosage(
+                notes,
+                recipe.volume,
+                recipe.fragrance_rate,
+                recipe.fragrance_percent
+              ).totalMl
               return (
                 <motion.div
                   key={i}
                   initial={{ flex: 0 }}
-                  animate={{ flex: total }}
+                  animate={{ flex: Math.max(sectionMl, 0.001) }}
                   transition={{ delay: 0.3 + i * 0.1, duration: 0.8, ease: 'easeOut' }}
                   style={{ background: color, borderRadius: '2px' }}
                 />
               )
             })}
           </div>
-          <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
+          <div style={{ display: 'flex', gap: '16px', marginTop: '8px', flexWrap: 'wrap' }}>
             {[
               { label: 'Top', notes: recipe.top_notes, color: '#0fbcb0' },
               { label: 'Middle', notes: recipe.middle_notes, color: '#f687b3' },
               { label: 'Base', notes: recipe.base_notes, color: '#f6ad55' },
-            ].map(({ label, notes, color }) => (
+            ].map(({ label, notes, color }) => {
+              const section = calcTotalDosage(
+                notes,
+                recipe.volume,
+                recipe.fragrance_rate,
+                recipe.fragrance_percent
+              )
+              return (
               <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <div style={{ width: '8px', height: '8px', borderRadius: '2px', background: color }} />
                 <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>{label}</span>
-                <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>
-                  {notes.reduce((sum, n) => sum + n.ratio, 0)}%
+                <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                  {formatMl(section.totalMl)}ml · {section.totalDrops}방울
                 </span>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 
@@ -844,17 +868,17 @@ export default function RecipeCardClient({ recipe, oilTypeByName }: Props) {
           ✦ 제조 안내
         </div>
         <p style={{ fontSize: '13px', color: '#92400e', margin: '0 0 10px', lineHeight: 1.7 }}>
-          {recipe.volume}ml 기준 · 원료 오일 {recipe.fragrance_percent ?? rateConfig?.defaultPercent}% · 합계 약 {totalDosage.totalDrops}방울
+          {recipe.volume}ml 기준 · 원료 오일 {formatMl(totalOilMl)}ml · 합계 {totalDosage.totalDrops}방울
           {carrierNotes.length > 0 && (
-            <> · 첨가제 {additiveTotalMl}ml ({additivePercent}%)</>
+            <> · 첨가제 {formatMl(additiveTotalMl)}ml</>
           )}
-          <> · 에탄올 {ethanolMl}ml</>
+          <> · 에탄올 {formatMl(ethanolMl)}ml</>
           <span style={{ color: '#b45309', fontSize: '12px' }}> · 1ml = {DROPS_PER_ML}방울</span>
         </p>
         <p style={{ fontSize: '13px', color: '#92400e', margin: 0, lineHeight: 1.7 }}>
           {rateConfig
-            ? `원료 오일 ${recipe.fragrance_percent ?? rateConfig.defaultPercent}% + 첨가제 ${additivePercent}% + 에탄올 나머지 / ${rateConfig.agingGuide.split(' / ').slice(1).join(' / ') || rateConfig.agingGuide}`
-            : '원료 오일 농도 정보 없음'}
+            ? rateConfig.agingGuide.split(' / ').slice(1).join(' / ') || rateConfig.agingGuide
+            : '숙성 안내 없음'}
         </p>
       </motion.div>
     </div>

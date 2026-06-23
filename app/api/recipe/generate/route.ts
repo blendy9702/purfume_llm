@@ -5,6 +5,7 @@ import { supabase, type Ingredient } from '@/lib/supabase'
 import { formatNoteLayers, getNoteLayers, resolveRecipeNotes } from '@/lib/ingredients'
 import {
   buildDiversityPromptSection,
+  buildNamingPromptSection,
   shuffleIngredientsList,
 } from '@/lib/recipe-diversity'
 import { buildPersonalityPromptSection, mergeRecipeSummary } from '@/lib/recipe-personality'
@@ -18,7 +19,9 @@ import { clampFragrancePercent, getFragranceRateConfig } from '@/lib/fragrance-r
 import {
   ADDITIVE_PERCENT_MAX,
   ADDITIVE_PERCENT_MIN,
+  buildSelectedCarrierPromptSection,
   normalizeCarrierNames,
+  partitionCarrierNotes,
   resolveCarrierNotesFromLLM,
   validateCarrierSelection,
 } from '@/lib/recipe-carrier'
@@ -60,7 +63,7 @@ export async function POST(request: NextRequest) {
 
   const { data: recentRecipes } = await supabase
     .from('recipes')
-    .select('top_notes, middle_notes, base_notes')
+    .select('name, top_notes, middle_notes, base_notes')
     .order('created_at', { ascending: false })
     .limit(12)
 
@@ -84,30 +87,33 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: carrierError }, { status: 400 })
   }
 
-  const validIngredientNames = fragranceIngredients.map((i) => i.name).join(', ')
+  const validIngredientNames = fragranceIngredients
+    .map((i, index) => `${index + 1}. "${i.name}"`)
+    .join('\n')
   const validCarrierNames = selectedCarrierNames.join(', ')
   const restrictedSection = buildRestrictedIngredientsPromptSection(ingredients, mentionText)
   const diversitySection = buildDiversityPromptSection(recentRecipes ?? [], allowedIngredients)
+  const namingSection = buildNamingPromptSection(recentRecipes ?? [])
   const personalitySection = buildPersonalityPromptSection(
     gender,
     mbti,
     Array.isArray(enneagram) ? enneagram : undefined
   )
 
-  const ingredientsList = shuffleIngredientsList(allowedIngredients)
+  const ingredientsList = shuffleIngredientsList(fragranceIngredients)
     .map((i: Ingredient) => {
-      if (i.category === 'carrier') {
-        const parts = ['첨가제 (DPG·올리브 리퀴드 등, 에탄올과 별도)']
-        if (i.scent_profile) parts.push(i.scent_profile)
-        return `- ${i.name} (${parts.join(', ')})`
-      }
-
       const parts = [`${formatNoteLayers(getNoteLayers(i))} 노트`]
       if (i.oil_type) parts.push(i.oil_type === 'essential' ? '에센셜 오일' : '프래그런스 오일')
       if (i.scent_profile) parts.push(i.scent_profile)
       return `- ${i.name} (${parts.join(', ')})`
     })
     .join('\n')
+
+  const selectedCarrierSection = buildSelectedCarrierPromptSection(
+    selectedCarrierNames,
+    carrierIngredients,
+    volume
+  )
 
   const carrierNotesSection =
     selectedCarrierNames.length > 0
@@ -120,10 +126,10 @@ export async function POST(request: NextRequest) {
   const carrierRulesSection =
     selectedCarrierNames.length > 0
       ? `
-- carrier_notes에는 아래 선택된 첨가제만 포함하세요: ${validCarrierNames}
+- carrier_notes는 **필수** 필드입니다. 선택된 첨가제(${validCarrierNames})를 **모두** 포함하고 ratio는 **절대 0이 아닌 숫자**로 작성하세요
 - carrier_notes의 ratio는 **전체 ${volume}ml 용량 대비 %** (에탄올·원료 오일과 별도)
-- carrier_notes ratio 합계: ${ADDITIVE_PERCENT_MIN}~${ADDITIVE_PERCENT_MAX}% (소량 첨가 — DPG·올리브 리퀴드 등 역할에 맞게 AI가 적절히 배분)
-- 선택된 첨가제를 carrier_notes에 모두 포함하고, top/middle/base_notes에는 넣지 마세요`
+- carrier_notes ratio 합계: ${ADDITIVE_PERCENT_MIN}~${ADDITIVE_PERCENT_MAX}% (DPG·올리브 리퀴드 등 역할에 맞게 배분)
+- 선택된 첨가제를 top/middle/base_notes에 넣지 마세요 — 오직 carrier_notes에만 작성`
       : `
 - category가 'carrier'인 재료(DPG, 올리브 리퀴드 등)는 top/middle/base 노트에 포함하지 마세요`
 
@@ -133,20 +139,21 @@ export async function POST(request: NextRequest) {
 ## 제조 조건
 - 부향률: ${fragrance_rate} (원료 오일 ${validatedPercent}% — 허용 범위 ${rateConfig?.min}~${rateConfig?.max}%)
 - 용량: ${volume}ml
-${selectedCarrierNames.length > 0 ? `- 선택된 첨가제 (에탄올과 별도, AI가 비율 결정): ${validCarrierNames}` : ''}
 ${special_notes ? `- 특이사항: ${special_notes}` : ''}
 
-${personalitySection}
+${selectedCarrierSection ? `${selectedCarrierSection}\n` : ''}${personalitySection}
 
 ${restrictedSection ? `${restrictedSection}\n` : ''}## 사용 가능한 재료
 ${ingredientsList}
 
 ${diversitySection}
 
+${namingSection}
+
 ## 응답 형식 (반드시 아래 JSON 형식으로만 응답하세요)
 {
   "personality_analysis": "성별·MBTI·에니어그램 종합 분석 (4-6문장, 한국어). 이 사람에게 어울리는 향 방향과 피해야 할 요소를 명확히 서술",
-  "name": "세련된 영어 향수명 (2-4단어, 분석된 성향을 반영한 럭셔리 네이밍. 반드시 영어로만)",
+  "name": "향수 제목 (1-4단어, 영어, 위 제목 지침 참고 — 럭셔리 마케팅 톤 금지)",
   "summary": "완성된 향수의 전체적 특성과 이 성향에게 왜 맞는지 (2-3문장, 한국어)",
   "top_notes": [
     { "name": "재료명 (목록과 동일)", "ratio": 숫자(퍼센트), "description": "이 재료를 선택한 이유 — 반드시 성별/MBTI/에니어그램과 연결 (한국어)" }
@@ -159,12 +166,12 @@ ${diversitySection}
   ]${carrierNotesSection}
 }
 
-## 사용 가능한 재료명 (top/middle/base_notes의 name에 아래 이름만 글자 그대로 사용)
+## 사용 가능한 재료명 (top/middle/base_notes의 name — 아래 목록에서 **따옴표 안 문자열을 한 글자도 바꾸지 않고** 복사)
 ${validIngredientNames}
 
 ## 규칙
 - 사용 가능한 재료 목록에서만 선택하세요
-- top_notes/middle_notes/base_notes의 name 필드는 위 재료명 목록에서 **한 글자도 바꾸지 않고 그대로** 복사하세요. 영어로 번역·로마자 표기·다른 표현으로 바꾸지 마세요
+- top_notes/middle_notes/base_notes의 name은 위 목록의 **따옴표 안 이름을 그대로** 복사하세요 (띄어쓰기·한글 표기·앤/and 포함). "라임"을 "라이밍" 등으로 바꾸지 마세요
 - description 필드는 한국어로 작성하고, 각 재료마다 고객 성향(MBTI/에니어그램/성별)과의 연관을 간단히 언급하세요
 - top_notes 비율 합계: ${fragrance_rate === 'Eau de Cologne' ? '30-40%' : fragrance_rate === 'Eau de Toilette' ? '25-35%' : '15-25%'}
 - middle_notes 비율 합계: ${fragrance_rate === 'Eau de Cologne' ? '40-50%' : fragrance_rate === 'Eau de Toilette' ? '40-50%' : '40-55%'}
@@ -174,7 +181,7 @@ ${validIngredientNames}
 - 에탄올은 주용 희석제이며 서버에서 자동 계산합니다 (원료 오일·첨가제를 제외한 나머지)${carrierRulesSection}
 - top notes: 2-4개, middle notes: 3-5개, base notes: 2-4개
 - 에센셜 오일과 프래그런스 오일을 골고루 섞어 조합의 다양성을 높이세요 (한쪽만 쓰지 마세요)
-- 최상위 name 필드(향수 제목)만 영어로 작성하세요. 재료 name은 위 재료명 목록을 그대로 복사하고, description은 한국어로 작성하세요
+- 최상위 name(향수 제목)은 영어 1~4단어. 재료 name은 위 재료명 목록을 그대로 복사하고, description은 한국어로 작성하세요
 - JSON 외 다른 텍스트 없이 JSON만 반환`
 
   try {
@@ -192,22 +199,37 @@ ${validIngredientNames}
 
     const recipe = JSON.parse(content)
 
+    const rawTop = recipe.top_notes ?? []
+    const rawMiddle = recipe.middle_notes ?? []
+    const rawBase = recipe.base_notes ?? []
+
+    const topPartition = partitionCarrierNotes(rawTop, carrierIngredients)
+    const middlePartition = partitionCarrierNotes(rawMiddle, carrierIngredients)
+    const basePartition = partitionCarrierNotes(rawBase, carrierIngredients)
+
+    const extractedCarrierNotes = [
+      ...topPartition.carrierNotes,
+      ...middlePartition.carrierNotes,
+      ...basePartition.carrierNotes,
+    ]
+
     const topNotes = filterRestrictedNotes(
-      resolveRecipeNotes(recipe.top_notes ?? [], fragranceIngredients),
+      resolveRecipeNotes(topPartition.fragranceNotes, fragranceIngredients),
       mentionText
     )
     const middleNotes = filterRestrictedNotes(
-      resolveRecipeNotes(recipe.middle_notes ?? [], fragranceIngredients),
+      resolveRecipeNotes(middlePartition.fragranceNotes, fragranceIngredients),
       mentionText
     )
     const baseNotes = filterRestrictedNotes(
-      resolveRecipeNotes(recipe.base_notes ?? [], fragranceIngredients),
+      resolveRecipeNotes(basePartition.fragranceNotes, fragranceIngredients),
       mentionText
     )
     const carrierNotes = resolveCarrierNotesFromLLM(
       recipe.carrier_notes,
       selectedCarrierNames,
-      carrierIngredients
+      carrierIngredients,
+      extractedCarrierNotes
     )
 
     const { data: saved, error: saveError } = await supabase

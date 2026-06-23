@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { resolveRecipeNotes } from '@/lib/ingredients'
+import { normalizeCarrierNotesForDisplay } from '@/lib/recipe-carrier'
 import { notFound } from 'next/navigation'
 import RecipeCardClient from '@/components/RecipeCardClient'
 
@@ -39,7 +40,13 @@ export default async function RecipePage({
     top_notes: resolveRecipeNotes(recipe.top_notes ?? [], ingredients ?? []),
     middle_notes: resolveRecipeNotes(recipe.middle_notes ?? [], ingredients ?? []),
     base_notes: resolveRecipeNotes(recipe.base_notes ?? [], ingredients ?? []),
-    carrier_notes: resolveRecipeNotes(recipe.carrier_notes ?? [], carrierIngredients),
+    carrier_notes: normalizeCarrierNotesForDisplay(
+      resolveRecipeNotes(recipe.carrier_notes ?? [], carrierIngredients).map((note) => ({
+        name: note.name,
+        ratio: note.ratio,
+        description: note.description ?? '',
+      }))
+    ),
   }
 
   return <RecipeCardClient recipe={resolvedRecipe} oilTypeByName={oilTypeByName} />

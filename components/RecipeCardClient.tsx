@@ -4,9 +4,10 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import type { Recipe, NoteItem } from '@/lib/supabase'
-import { calcIngredientDosage, calcTotalDosage, calcAdditiveDosage, calcEthanolVolumeMl, calcOilVolumeMl, formatMl, DROPS_PER_ML } from '@/lib/recipe-dosage'
+import { calcIngredientDosage, calcTotalDosage, calcAdditiveDosage, calcEthanolVolumeMl, calcOilVolumeMl, formatMl } from '@/lib/recipe-dosage'
 import { resolveAdditivePercent, getTotalAdditivePercent } from '@/lib/recipe-carrier'
 import { formatFragranceRateLabel, getFragranceRateConfig } from '@/lib/fragrance-rate'
+import { buildRecipeManufacturingScript } from '@/lib/recipe-script'
 
 type Props = {
   recipe: Recipe
@@ -495,7 +496,19 @@ function EthanolCard({
 export default function RecipeCardClient({ recipe, oilTypeByName }: Props) {
   const router = useRouter()
   const [deleting, setDeleting] = useState(false)
+  const [copied, setCopied] = useState(false)
   const genderBadge = GENDER_BADGE[recipe.gender] ?? { bg: '#f3f4f6', text: '#374151' }
+  const manufacturingScript = buildRecipeManufacturingScript(recipe, oilTypeByName)
+
+  async function handleCopyScript() {
+    try {
+      await navigator.clipboard.writeText(manufacturingScript)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setCopied(false)
+    }
+  }
 
   async function handleDelete() {
     if (!confirm('이 레시피를 삭제하시겠습니까?')) return
@@ -511,13 +524,6 @@ export default function RecipeCardClient({ recipe, oilTypeByName }: Props) {
     day: 'numeric',
   })
 
-  const allNotes = [...recipe.top_notes, ...recipe.middle_notes, ...recipe.base_notes]
-  const totalDosage = calcTotalDosage(
-    allNotes,
-    recipe.volume,
-    recipe.fragrance_rate,
-    recipe.fragrance_percent
-  )
   const totalOilMl = calcOilVolumeMl(
     recipe.volume,
     recipe.fragrance_rate,
@@ -526,16 +532,6 @@ export default function RecipeCardClient({ recipe, oilTypeByName }: Props) {
   const rateConfig = getFragranceRateConfig(recipe.fragrance_rate)
   const carrierNotes = recipe.carrier_notes ?? []
   const additivePercent = resolveAdditivePercent(carrierNotes)
-  const additiveTotalMl = carrierNotes.reduce(
-    (sum, note) => sum + calcAdditiveDosage(note.ratio, recipe.volume).ml,
-    0
-  )
-  const ethanolMl = calcEthanolVolumeMl(
-    recipe.volume,
-    recipe.fragrance_rate,
-    recipe.fragrance_percent,
-    additivePercent
-  )
 
   return (
     <div style={{ width: '100%', maxWidth: '900px', margin: '0 auto' }}>
@@ -864,17 +860,54 @@ export default function RecipeCardClient({ recipe, oilTypeByName }: Props) {
           border: '1px solid #ffd02f44',
         }}
       >
-        <div style={{ fontSize: '14px', fontWeight: 600, color: '#92400e', marginBottom: '8px' }}>
-          ✦ 제조 안내
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            marginBottom: '12px',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ fontSize: '14px', fontWeight: 600, color: '#92400e' }}>
+            ✦ 제조 안내
+          </div>
+          <button
+            type="button"
+            onClick={handleCopyScript}
+            style={{
+              padding: '8px 14px',
+              borderRadius: '9999px',
+              border: '1px solid #f6ad55',
+              background: copied ? '#92400e' : '#ffffff',
+              color: copied ? '#ffffff' : '#92400e',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}
+          >
+            {copied ? '복사됨' : '제조 스크립트 복사'}
+          </button>
         </div>
-        <p style={{ fontSize: '13px', color: '#92400e', margin: '0 0 10px', lineHeight: 1.7 }}>
-          {recipe.volume}ml 기준 · 원료 오일 {formatMl(totalOilMl)}ml · 합계 {totalDosage.totalDrops}방울
-          {carrierNotes.length > 0 && (
-            <> · 첨가제 {formatMl(additiveTotalMl)}ml</>
-          )}
-          <> · 에탄올 {formatMl(ethanolMl)}ml</>
-          <span style={{ color: '#b45309', fontSize: '12px' }}> · 1ml = {DROPS_PER_ML}방울</span>
-        </p>
+        <pre
+          style={{
+            margin: '0 0 12px',
+            padding: '14px 16px',
+            background: 'rgba(255,255,255,0.65)',
+            borderRadius: '12px',
+            border: '1px solid #ffd02f66',
+            fontSize: '12px',
+            lineHeight: 1.7,
+            color: '#78350f',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            fontFamily: 'inherit',
+          }}
+        >
+          {manufacturingScript}
+        </pre>
         <p style={{ fontSize: '13px', color: '#92400e', margin: 0, lineHeight: 1.7 }}>
           {rateConfig
             ? rateConfig.agingGuide.split(' / ').slice(1).join(' / ') || rateConfig.agingGuide
